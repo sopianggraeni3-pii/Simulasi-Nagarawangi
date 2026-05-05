@@ -8,8 +8,9 @@ const PHASES = [
   { streams: [1], col: '#22c55e' },
 ];
 
-// Arrival rates visual canvas — sinkron dengan useTwinEngine (veh/s)
-const ARRIVALS = [0.15, 0.65, 0.20, 0.10, 0.50, 0.15, 0.35];
+// Arrival rates — synced with useTwinEngine ARRIVAL_RATES (veh/s)
+// Index 1 = 0.65 to guarantee heavy South-to-North visual volume
+const ARRIVALS = [0.10, 0.70, 0.20, 0.35, 0.30, 0.10, 0.15];
 
 // Conflict matrix: stream → list of streams that conflict in the box
 const CONFLICTS = { 1: [4, 6], 4: [1, 6], 6: [1, 4] };
@@ -56,8 +57,9 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
       const d = window.devicePixelRatio || 1;
       const lw = RW * 0.65;   // lane half-width
       const med = RW * 0.18;   // north road median half-width
-      const sd = RW * 2.5;    // stop distance from centre
+      const sd = RW * 1.5;    // stop distance from centre
       const ex = W + 100 * d; // exit off-screen X
+      const northInboundX = CX - lw / 2 - med; // inbound lane X for north road
 
       // Each stream: spawn point, stop point, freeFlow flag, path waypoints
       return [
@@ -66,10 +68,11 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
           sx: CX - lw * 0.8, sy: H + 60 * d, stopX: CX - lw * 0.8, stopY: CY + sd, freeFlow: true,
           path: [{ x: CX - lw * 0.8, y: CY + sd }, { x: CX - lw * 0.8, y: CY + lw * 0.4 }, { x: -80 * d, y: CY + lw * 0.4 }]
         },
-        // 1: South→North (straight, controlled Fase 3) — centre of south road
+        // 1: South→North (straight, controlled Fase 3)
+        // Curves left BEFORE crossing CY so it clears the roundabout monument
         {
           sx: CX, sy: H + 60 * d, stopX: CX, stopY: CY + sd, freeFlow: false,
-          path: [{ x: CX, y: CY + sd }, { x: CX - (lw * 0.5 + med), y: CY + lw * 0.5 }, { x: CX - (lw * 0.5 + med), y: -80 * d }]
+          path: [{ x: CX, y: CY + sd }, { x: northInboundX, y: CY + lw }, { x: northInboundX, y: -60 * d }]
         },
         // 2: South→East (right, free-flow) — right side of south road
         {
@@ -81,10 +84,10 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
           sx: -80 * d, sy: CY - lw * 0.45, stopX: CX - sd, stopY: CY - lw * 0.45, freeFlow: true,
           path: [{ x: CX - sd, y: CY - lw * 0.45 }, { x: CX - (lw * 0.5 + med), y: CY - lw * 0.45 }, { x: CX - (lw * 0.5 + med), y: -80 * d }]
         },
-        // 4: West→East (straight, controlled Fase 1) — top lane west road
+        // 4: West→East (straight, controlled Fase 1) — dips south through intersection to clear roundabout
         {
-          sx: -80 * d, sy: CY - lw * 0.45, stopX: CX - sd, stopY: CY - lw * 0.45, freeFlow: false,
-          path: [{ x: CX - sd, y: CY - lw * 0.45 }, { x: ex, y: CY - lw * 0.45 }]
+          sx: -60 * d, sy: CY - lw / 2, stopX: CX - sd, stopY: CY - lw / 2, freeFlow: false,
+          path: [{ x: CX - sd, y: CY - lw / 2 }, { x: CX, y: CY + lw * 0.9 }, { x: ex, y: CY - lw / 2 }]
         },
         // 5: North→East (left, free-flow) — right lane of north road
         {
@@ -115,39 +118,49 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
       });
     }
 
-    // ── Is vehicle u ahead of v approaching stop? ────────
+    // ── Is vehicle u ahead of v approaching stop-line? ──
+    // Returns true if u is closer to the stop-line than v.
+    // Strict tie-breaker (threshold 0.1) prevents ghost-merging at near-identical positions.
     function ahead(u, v, c) {
-      const d1 = (c.stopX - u.x) ** 2 + (c.stopY - u.y) ** 2;
-      const d2 = (c.stopX - v.x) ** 2 + (c.stopY - v.y) ** 2;
-      return d1 < d2;
+      const dx1 = c.stopX - u.x, dy1 = c.stopY - u.y;
+      const dx2 = c.stopX - v.x, dy2 = c.stopY - v.y;
+      const dist1 = dx1 * dx1 + dy1 * dy1;
+      const dist2 = dx2 * dx2 + dy2 * dy2;
+      // Strict tie-breaker for Ghost Merging
+      if (Math.abs(dist1 - dist2) < 0.1) return u.id < v.id;
+      return dist1 < dist2;
     }
 
-    // ── Intersection box conflict check ──────────────────
-    // Hanya rem jika kendaraan konflik benar-benar berada di dalam
-    // area fisik simpang (bukan yang sedang mengantri di luar).
+    // ── Intersection centre conflict check (isSafe) ─────────
+    // A controlled-stream vehicle may ONLY be blocked if a CONFLICTING vehicle
+    // is PHYSICALLY inside the strict centre box (1.0×RW radius) AND in 'cross' state.
+    // We check only the conflicting vehicle's centre point — no broad sweeps.
     function isSafe(v) {
       const c = SC[v.si]; if (!c || c.freeFlow) return true;
-      // Gunakan radius ketat = 1.2×RW agar hanya area pusat simpang
-      const bs = RW * 1.2;
-      const box = { x1: CX - bs, x2: CX + bs, y1: CY - bs, y2: CY + bs };
-      for (const o of vehs) {
-        if (o === v || !(CONFLICTS[v.si] || []).includes(o.si)) continue;
-        // Hanya block jika kendaraan lain SEDANG bergerak di dalam kotak simpang
-        if (o.state !== 'cross') continue;
-        if (o.x > box.x1 && o.x < box.x2 && o.y > box.y1 && o.y < box.y2) return false;
+      const conflicts = CONFLICTS[v.si] || [];
+      for (const other of vehs) {
+        if (other === v || !conflicts.includes(other.si)) continue;
+        if (other.state === 'cross') {
+          const dx = other.x - CX; const dy = other.y - CY;
+          // STRICTER RADIUS: Only brake if the enemy is deeply inside the center box
+          if (dx * dx + dy * dy < (RW * 1.2) * (RW * 1.2)) return false;
+        }
       }
       return true;
     }
 
-    // ── Yield check for free-flow streams ────────────────
+    // ── Yield check for free-flow streams ──────────────────
+    // A free-flow vehicle yields ONLY when a CONFLICTING vehicle (regardless
+    // of phase) is physically inside the strict centre box AND in 'cross' state.
+    // Traffic-light phase is intentionally ignored — free-flow means free-flow.
     function mustYield(v) {
       const ys = YIELDS[v.si]; if (!ys) return false;
-      const gs = PHASES[propsRef.current.activePhase].streams;
-      const bs = RW * 2.5;
+      const bs = RW * 1.0;
       for (const o of vehs) {
-        if (!ys.includes(o.si) || !gs.includes(o.si)) continue;
-        if (o.x > CX - bs && o.x < CX + bs && o.y > CY - bs && o.y < CY + bs &&
-          (o.state === 'cross' || o.state === 'queued')) return true;
+        if (!ys.includes(o.si)) continue;
+        // Yield only when the conflicting vehicle is actively inside the box
+        if (o.state !== 'cross') continue;
+        if (o.x > CX - bs && o.x < CX + bs && o.y > CY - bs && o.y < CY + bs) return true;
       }
       return false;
     }
@@ -173,11 +186,15 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
           v.ang = Math.atan2(dy, dx) + Math.PI / 2;
         } else {
           if (c.freeFlow) {
+            // FREE-FLOW (streams 0, 2, 3, 5): traffic light phase is IGNORED.
+            // Only yield if a conflicting vehicle is physically inside the box.
             if (mustYield(v)) v.state = 'queued';
             else { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
           } else if (!controlled) {
+            // Controlled stream on red → queue up
             v.state = 'queued';
           } else {
+            // Controlled stream with green → check physical safety then cross
             if (isSafe(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
             else v.state = 'queued';
           }
@@ -185,6 +202,7 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
       } else if (v.state === 'queued') {
         const ah = vehs.filter(u => u !== v && u.si === v.si && u.state === 'queued' && ahead(u, v, c)).length;
         if (ah === 0) {
+          // FREE-FLOW re-checks every frame: proceed the moment the box is clear
           if (c.freeFlow) { if (!mustYield(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; } }
           else if (controlled && isSafe(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
         }
@@ -217,30 +235,35 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
     function draw() {
       ctx.clearRect(0, 0, W, H);
       const d = window.devicePixelRatio || 1;
-      const lw = RW * 0.65, med = RW * 0.18, sd = RW * 2.5;
+      const lw = RW * 0.65, med = RW * 0.18, sd = RW * 1.5;
 
-      // Background
-      ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#141a14'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(255,255,255,0.012)';
+      for (let i = 0; i < W; i += 18 * d) for (let j = 0; j < H; j += 18 * d) ctx.fillRect(i, j, 1, 1);
 
-      // Sidewalk blocks
-      ctx.fillStyle = '#1e2433';
-      ctx.fillRect(CX - RW * 2.0, CY + RW * 2.0, RW * 4, H);
-      ctx.fillRect(CX - RW * 2.0, 0, RW * 4, CY - RW * 2.0);
-      ctx.fillRect(0, CY - RW * 2.0, CX - RW * 2.0, RW * 4);
-      ctx.fillRect(CX + RW * 2.0, CY - RW * 2.0, W, RW * 4);
+      const pad = 10 * d; // Thin, proportional sidewalk padding
 
-      // Asphalt roads
+      // Calculate the maximum boundaries for the center intersection box
+      const maxL = Math.min(CX - lw * 1.5, CX - lw - med * 2);
+      const maxR = Math.max(CX + lw * 1.5, CX + lw + med * 2);
+      const maxT = CY - lw * 1.5;
+      const maxB = CY + lw * 1.5;
+
+      // 1. Draw Sidewalks (Trotoar) - Wraps the asphalt with 'pad' thickness
+      ctx.fillStyle = '#2a2e3a';
+      ctx.fillRect(CX - lw * 1.5 - pad, CY, lw * 3 + pad * 2, H - CY); // South
+      ctx.fillRect(CX - lw - med * 2 - pad, 0, lw * 2 + med * 4 + pad * 2, CY); // North
+      ctx.fillRect(0, CY - lw - pad, CX, lw * 2 + pad * 2); // West
+      ctx.fillRect(CX, CY - lw - pad, W - CX, lw * 2 + pad * 2); // East
+      ctx.fillRect(maxL - pad, maxT - pad, (maxR - maxL) + pad * 2, (maxB - maxT) + pad * 2); // Center Hub
+
+      // 2. Draw Asphalt (Jalan Utama)
       ctx.fillStyle = '#1c2030';
-      // South road (1-way in, full width)
-      ctx.fillRect(CX - lw * 1.4, CY, lw * 2.8, H - CY);
-      // East road (1-way out, full width)
-      ctx.fillRect(CX, CY - lw, W - CX, lw * 2);
-      // West road (2-way)
-      ctx.fillRect(0, CY - lw, CX, lw * 2);
-      // North road (2-way with median)
-      ctx.fillRect(CX - lw - med * 1.5, 0, lw * 2 + med * 3, CY);
-      // Intersection box
-      ctx.fillRect(CX - lw * 1.4, CY - lw, lw * 2.8, lw * 2);
+      ctx.fillRect(CX - lw * 1.5, CY, lw * 3, H - CY); // South
+      ctx.fillRect(CX - lw - med * 2, 0, lw * 2 + med * 4, CY); // North
+      ctx.fillRect(0, CY - lw, CX, lw * 2); // West
+      ctx.fillRect(CX, CY - lw, W - CX, lw * 2); // East
+      ctx.fillRect(maxL, maxT, maxR - maxL, maxB - maxT); // Center Hub
 
       // North road median island
       ctx.fillStyle = '#2d3347';
@@ -335,7 +358,7 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
       cv.width = rect.width * d; cv.height = rect.height * d;
       cv.style.width = rect.width + 'px'; cv.style.height = rect.height + 'px';
       W = cv.width; H = cv.height; CX = W / 2; CY = H / 2;
-      RW = Math.min(W, H) * 0.095;
+      RW = Math.min(W, H) * 0.14; // Jalanan dan mobil akan ter-render lebih besar (Zoom In)
       SC = buildSC();
       draw();
     }

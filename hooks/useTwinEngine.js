@@ -27,15 +27,13 @@ const PHASES = [
 // Laju kedatangan realistis (veh/s) — dari data CSV Nagarawangi
 // Data kepadatan dikurangi agar visual jalanan tidak terlalu sesak
 // Namun tetap proporsional sesuai data CSV
-const ARRIVAL_RATES = [
-  0.09, // v1 Sel-Kiri 
-  0.39, // v2 Sel-Lurus (Arus terpadat)
-  0.12, // v3 Sel-Kanan 
-  0.06, // v4 Bar-Kiri 
-  0.30, // v5 Bar-Lurus (Padat kedua)
-  0.09, // v6 Utr-Kiri 
-  0.21  // v7 Utr-Kanan 
-];
+// SKENARIO 3: Distribusi Tidak Merata (Diambil dari CSV)
+// Format dikonversi dari (kendaraan / menit) menjadi (kendaraan / detik)
+
+// Arus kedatangan (veh/s) — diperbarui untuk memprioritsakan arah Utara.
+// Index 1 (Selatan→Utara) = 0.70 (volume sangat tinggi, stream dominan)
+// Index 3 (Barat→Utara)   = 0.35 (volume tinggi, kontribusi ke Utara)
+const ARRIVAL_RATES = [0.10, 0.70, 0.20, 0.35, 0.30, 0.10, 0.15];
 
 
 const SAT_FLOW = 2.0; // Kapasitas jalan (2 mobil keluar per detik saat hijau)
@@ -47,7 +45,7 @@ const CONTROLLED_STREAMS = new Set([1, 4, 6]);
 
 const FREE_FACTOR = 0.8;          // faktor kapasitas free-flow
 const FIXED_GREEN = 30;           // detik — durasi hijau tetap
-const MIN_GREEN = 12;             // detik — batas bawah hybrid
+const MIN_GREEN = 20;             // detik — batas bawah hybrid (realistis)
 const MAX_GREEN = 60;             // detik — batas atas hybrid
 const DT = 1 / 60;       // interval satu frame (60 FPS)
 
@@ -66,42 +64,39 @@ const INITIAL_QUEUES = [2, 10, 1, 1, 8, 2, 5];
 // ─────────────────────────────────────────────────────────────
 function mkState() {
   return {
-    queues: [...INITIAL_QUEUES],
+    queues: [25, 5, 30, 2, 40, 8, 8], // (Atau antrean berapapun yang sedang kamu pakai)
+    densities: [0, 0, 0, 0, 0, 0, 0], // <--- TAMBAHKAN BARIS INI
     phase: 0,
     timer: FIXED_GREEN,
     totalGreen: FIXED_GREEN,
     throughput: 0,
-    /**
-     * totalWait: akumulasi (jumlah_antrian × DT) untuk semua controlled stream
-     * yang sedang merah. Satuan: veh·s  →  dibagi totalServed = s/veh (delay rata-rata).
-     */
     totalWait: 0,
-    totalServed: 0,
-    /**
-     * densities: kepadatan per stream (veh/km) = antrian / ROAD_LENGTH_KM.
-     * Di-snapshot setiap 1 detik simulasi.
-     */
-    densities: [...INITIAL_QUEUES.map((q, i) => q / ROAD_LENGTH_KM[i])],
+    totalServed: 0
   };
 }
 
 /**
  * Algoritma Hybrid GC-Greedy — Pure Greedy:
- * Hitung waktu tepat yang dibutuhkan untuk mengosongkan antrian fase aktif,
- * ditambah buffer 5 detik, kemudian clamp ke [MIN_GREEN, MAX_GREEN].
+ * Hitung clearance time murni berdasarkan antrian fase aktif,
+ * tambahkan buffer 5 detik, lalu clamp KETAT ke [MIN_GREEN, MAX_GREEN].
  *
- * neededTime = ceil(phaseQueue / SAT_FLOW) + 5
+ * Formula:
+ *   neededTime = ceil(phaseQueue / SAT_FLOW) + 5 (buffer keamanan)
+ *   result     = clamp(neededTime, MIN_GREEN=20, MAX_GREEN=60)
  *
- * Ini jauh lebih efisien dari Fixed-Time karena:
- *  - Fase dengan antrian sedikit mendapat hijau singkat (≥ MIN_GREEN)
- *  - Fase padat mendapat waktu tepat yang dibutuhkan (≤ MAX_GREEN)
- *  - Tidak ada waktu hijau yang terbuang
+ * Fixed-Time tetap 30 detik — tidak disentuh.
+ * Hybrid lebih efisien karena:
+ *  - Fase antrian kecil → hijau minimum 20 s (tidak terlalu singkat)
+ *  - Fase antrian besar → hijau proporsional, maksimum 60 s
+ *  - Tidak ada waktu hijau yang terbuang atau terlalu cepat berganti
  */
 function computeHybridGreen(state, phaseIdx) {
   const phaseStreams = PHASES[phaseIdx].streams;
+  // Total antrian di semua stream yang aktif pada fase ini
   const phaseQueue = phaseStreams.reduce((s, i) => s + (state.queues[i] || 0), 0);
-  // Waktu untuk clear antrian saat ini + 5 detik buffer keamanan
+  // Clearance time murni + 5 detik buffer keamanan
   const neededTime = Math.ceil(phaseQueue / SAT_FLOW) + 5;
+  // Clamp KETAT: minimum 20 s (realistis), maksimum 60 s (tidak memacetkan)
   return Math.max(MIN_GREEN, Math.min(MAX_GREEN, neededTime));
 }
 
