@@ -1,0 +1,6 @@
+id_skenario,nama_skenario,antrean_barat,antrean_utara,antrean_selatan
+1,Kondisi Normal (Lancar),10,5,12
+2,Kepadatan Barat (Arah HZ Mustofa),45,10,15
+3,Kepadatan Selatan (Jam Pulang Kerja),20,15,55
+4,Overload (Macet Parah Merata),60,40,70
+5,Kondisi Ekstrem (Utara Sepi & Barat Stuck),80,2,5

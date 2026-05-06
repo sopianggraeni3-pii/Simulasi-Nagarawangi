@@ -14,14 +14,14 @@
 import { useEffect, useRef } from 'react';
 import { Renderer } from '../lib/simulation/Renderer.js';
 
-export default function TrafficSimulation({ getEngines, isRunning, speed }) {
+export default function TrafficSimulation({ getEngines, isRunning, speed, debug }) {
   const canvasRef  = useRef(null);
-  const propsRef   = useRef({ isRunning, speed, getEngines });
+  const propsRef   = useRef({ isRunning, speed, getEngines, debug });
 
   // Keep propsRef fresh every render without re-triggering the effect
   useEffect(() => {
-    propsRef.current = { isRunning, speed, getEngines };
-  }, [isRunning, speed, getEngines]);
+    propsRef.current = { isRunning, speed, getEngines, debug };
+  }, [isRunning, speed, getEngines, debug]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,9 +35,9 @@ export default function TrafficSimulation({ getEngines, isRunning, speed }) {
     function onResize() {
       renderer.resize();
       // Draw static frame while paused
-      const { getEngines: ge } = propsRef.current;
+      const { getEngines: ge, debug: db } = propsRef.current;
       const { hybrid } = ge();
-      renderer.draw(hybrid.vehicles, hybrid.light.snapshot(), hybrid.metrics);
+      renderer.draw(hybrid.vehicles, hybrid.light.snapshot(), hybrid.metrics, db);
     }
 
     window.addEventListener('resize', onResize);
@@ -49,14 +49,14 @@ export default function TrafficSimulation({ getEngines, isRunning, speed }) {
       if (!lastTs) lastTs = ts;
       lastTs = ts;
 
-      const { getEngines: ge, isRunning: ir } = propsRef.current;
+      const { getEngines: ge, isRunning: ir, debug: db } = propsRef.current;
       if (!ge) return;
 
       const { hybrid } = ge();
       if (!hybrid) return;
 
       // Always render (even when paused — vehicles may be mid-frame)
-      renderer.draw(hybrid.vehicles, hybrid.light.snapshot(), hybrid.metrics);
+      renderer.draw(hybrid.vehicles, hybrid.light.snapshot(), hybrid.metrics, db);
     };
 
     rafId = requestAnimationFrame(loop);

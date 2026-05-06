@@ -1,17 +1,4 @@
 'use client';
-/**
- * useSimulation.js — React hook wrapping the twin simulation engines.
- *
- * Runs two SimulationEngine instances in parallel:
- *   - "fixed"  → Fixed-Time control (30 s constant green)
- *   - "hybrid" → Adaptive Hybrid GC-Greedy control
- *
- * The RAF loop drives both engines at the user's chosen speed multiplier.
- * UI state is only updated once per simulated second to keep React renders cheap.
- *
- * Returns: { fixed, hybrid, isRunning, speed, time, chartData,
- *            togglePlay, setSpeed, resetSim }
- */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SimulationEngine, DEFAULT_DATASET } from '../lib/simulation/SimulationEngine.js';
@@ -23,23 +10,23 @@ export function useSimulation() {
   const engRef = useRef(null);
 
   if (!engRef.current) {
-    const fixed  = new SimulationEngine({ adaptive: false, dataset: DEFAULT_DATASET });
-    const hybrid = new SimulationEngine({ adaptive: true,  dataset: DEFAULT_DATASET });
-    fixed.running  = false;
+    const fixed = new SimulationEngine({ adaptive: false, dataset: DEFAULT_DATASET });
+    const hybrid = new SimulationEngine({ adaptive: true, dataset: DEFAULT_DATASET });
+    fixed.running = false;
     hybrid.running = false;
 
     engRef.current = {
       fixed,
       hybrid,
-      isRunning:  false,
-      speed:      2,            // simulation speed multiplier
-      time:       0,            // wall time (s) — same for both
+      isRunning: false,
+      speed: 2,            // simulation speed multiplier
+      time: 0,            // wall time (s) — same for both
       lastUISync: 0,
       chartData: {
-        labels:     [],
-        fixedQ:     [],  // total queue (veh)
-        hybridQ:    [],
-        fixedDens:  [],  // mean density (veh/km)
+        labels: [],
+        fixedQ: [],  // total queue (veh)
+        hybridQ: [],
+        fixedDens: [],  // mean density (veh/km)
         hybridDens: [],
       },
     };
@@ -47,11 +34,11 @@ export function useSimulation() {
 
   // ── React-visible state ────────────────────────────────────────────────────
   const [ui, setUi] = useState(() => ({
-    time:     0,
+    time: 0,
     isRunning: false,
-    speed:     2,
-    fixed:     engRef.current.fixed.snapshot(),
-    hybrid:    engRef.current.hybrid.snapshot(),
+    speed: 2,
+    fixed: engRef.current.fixed.snapshot(),
+    hybrid: engRef.current.hybrid.snapshot(),
     chartData: { ...engRef.current.chartData },
   }));
 
@@ -71,7 +58,7 @@ export function useSimulation() {
 
       // Number of simulation steps at 60 fps equivalent × speed
       const steps = Math.max(1, Math.round(delta * 60 * eng.speed));
-      const dt    = 1 / 60;
+      const dt = 1 / 60;
 
       for (let s = 0; s < steps; s++) {
         eng.fixed.step(dt);
@@ -83,9 +70,9 @@ export function useSimulation() {
       if (eng.time - eng.lastUISync >= UI_UPDATE_INTERVAL) {
         eng.lastUISync = eng.time;
 
-        const label   = `${Math.round(eng.time)}s`;
-        const fSnap   = eng.fixed.snapshot();
-        const hSnap   = eng.hybrid.snapshot();
+        const label = `${Math.round(eng.time)}s`;
+        const fSnap = eng.fixed.snapshot();
+        const hSnap = eng.hybrid.snapshot();
 
         const fQ = fSnap.queues.reduce((a, b) => a + b, 0);
         const hQ = hSnap.queues.reduce((a, b) => a + b, 0);
@@ -107,11 +94,11 @@ export function useSimulation() {
         }
 
         setUi({
-          time:      eng.time,
+          time: eng.time,
           isRunning: eng.isRunning,
-          speed:     eng.speed,
-          fixed:     fSnap,
-          hybrid:    hSnap,
+          speed: eng.speed,
+          fixed: fSnap,
+          hybrid: hSnap,
           chartData: { ...cd, labels: [...cd.labels], fixedQ: [...cd.fixedQ], hybridQ: [...cd.hybridQ], fixedDens: [...cd.fixedDens], hybridDens: [...cd.hybridDens] },
         });
       }
@@ -124,9 +111,9 @@ export function useSimulation() {
   // ── Controls ───────────────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     const eng = engRef.current;
-    eng.isRunning          = !eng.isRunning;
-    eng.fixed.running      = eng.isRunning;
-    eng.hybrid.running     = eng.isRunning;
+    eng.isRunning = !eng.isRunning;
+    eng.fixed.running = eng.isRunning;
+    eng.hybrid.running = eng.isRunning;
     setUi(prev => ({ ...prev, isRunning: eng.isRunning }));
   }, []);
 
@@ -136,18 +123,18 @@ export function useSimulation() {
   }, []);
 
   const resetSim = useCallback(() => {
-    const eng    = engRef.current;
+    const eng = engRef.current;
     eng.isRunning = false;
-    eng.time      = 0;
+    eng.time = 0;
     eng.lastUISync = 0;
 
-    eng.fixed  = new SimulationEngine({ adaptive: false, dataset: DEFAULT_DATASET });
-    eng.hybrid = new SimulationEngine({ adaptive: true,  dataset: DEFAULT_DATASET });
+    eng.fixed = new SimulationEngine({ adaptive: false, dataset: DEFAULT_DATASET });
+    eng.hybrid = new SimulationEngine({ adaptive: true, dataset: DEFAULT_DATASET });
     eng.chartData = { labels: [], fixedQ: [], hybridQ: [], fixedDens: [], hybridDens: [] };
 
     setUi({
       time: 0, isRunning: false, speed: eng.speed,
-      fixed:  eng.fixed.snapshot(),
+      fixed: eng.fixed.snapshot(),
       hybrid: eng.hybrid.snapshot(),
       chartData: { labels: [], fixedQ: [], hybridQ: [], fixedDens: [], hybridDens: [] },
     });
@@ -155,7 +142,7 @@ export function useSimulation() {
 
   // Expose engine ref for canvas renderer (direct access, no React state)
   const getEngines = useCallback(() => ({
-    fixed:  engRef.current.fixed,
+    fixed: engRef.current.fixed,
     hybrid: engRef.current.hybrid,
   }), []);
 

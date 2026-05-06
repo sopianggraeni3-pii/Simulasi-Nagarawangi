@@ -75,21 +75,7 @@ function mkState() {
   };
 }
 
-/**
- * Algoritma Hybrid GC-Greedy — Pure Greedy:
- * Hitung clearance time murni berdasarkan antrian fase aktif,
- * tambahkan buffer 5 detik, lalu clamp KETAT ke [MIN_GREEN, MAX_GREEN].
- *
- * Formula:
- *   neededTime = ceil(phaseQueue / SAT_FLOW) + 5 (buffer keamanan)
- *   result     = clamp(neededTime, MIN_GREEN=20, MAX_GREEN=60)
- *
- * Fixed-Time tetap 30 detik — tidak disentuh.
- * Hybrid lebih efisien karena:
- *  - Fase antrian kecil → hijau minimum 20 s (tidak terlalu singkat)
- *  - Fase antrian besar → hijau proporsional, maksimum 60 s
- *  - Tidak ada waktu hijau yang terbuang atau terlalu cepat berganti
- */
+
 function computeHybridGreen(state, phaseIdx) {
   const phaseStreams = PHASES[phaseIdx].streams;
   // Total antrian di semua stream yang aktif pada fase ini

@@ -7,12 +7,13 @@
  *   Right (1/3) — Controls, metrics, chart, queue table, legend
  */
 
+import { useState } from 'react';
 import { useSimulation } from '../hooks/useSimulation';
 import TrafficSimulation from '../components/TrafficSimulation';
 import ComparisonChart from '../components/ComparisonChart';
 import {
   Play, Pause, RotateCcw, Gauge, Clock, TrendingUp,
-  TrendingDown, Activity, Layers, Info, Database, Zap,
+  TrendingDown, Activity, Layers, Info, Database, Zap, Bug,
 } from 'lucide-react';
 import { DEFAULT_DATASET } from '../lib/simulation/SimulationEngine';
 
@@ -131,6 +132,7 @@ function DatasetBadge() {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const sim = useSimulation();
+  const [debug, setDebug] = useState(false);
   const speedLabels = { 1: '1×', 2: '2×', 3: '3×', 4: '4×', 5: '5×' };
 
   const fixedTotal  = (sim.fixed?.queues?.reduce((a, b) => a + b, 0) || 1);
@@ -163,6 +165,20 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Debug Mode */}
+          <button
+            id="btn-debug"
+            onClick={() => setDebug(!debug)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: debug ? 'rgba(0,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${debug ? 'rgba(0,255,255,0.3)' : 'rgba(255,255,255,0.08)'}`,
+              color: debug ? '#00ffff' : '#94a3b8',
+            }}
+          >
+            <Bug size={12} /> {debug ? 'Debug: On' : 'Debug'}
+          </button>
+
           {/* Speed slider */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/4 text-xs">
             <Gauge size={11} className="text-slate-400" />
@@ -233,6 +249,7 @@ export default function Dashboard() {
               getEngines={sim.getEngines}
               isRunning={sim.isRunning}
               speed={sim.speed}
+              debug={debug}
             />
           </div>
         </section>

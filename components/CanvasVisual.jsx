@@ -189,13 +189,13 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
             // FREE-FLOW (streams 0, 2, 3, 5): traffic light phase is IGNORED.
             // Only yield if a conflicting vehicle is physically inside the box.
             if (mustYield(v)) v.state = 'queued';
-            else { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
+            else { v.state = 'cross'; v.pi = 0; }
           } else if (!controlled) {
             // Controlled stream on red → queue up
             v.state = 'queued';
           } else {
             // Controlled stream with green → check physical safety then cross
-            if (isSafe(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
+            if (isSafe(v)) { v.state = 'cross'; v.pi = 0; }
             else v.state = 'queued';
           }
         }
@@ -203,8 +203,8 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
         const ah = vehs.filter(u => u !== v && u.si === v.si && u.state === 'queued' && ahead(u, v, c)).length;
         if (ah === 0) {
           // FREE-FLOW re-checks every frame: proceed the moment the box is clear
-          if (c.freeFlow) { if (!mustYield(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; } }
-          else if (controlled && isSafe(v)) { v.state = 'cross'; v.pi = 0; v.x = c.path[0].x; v.y = c.path[0].y; }
+          if (c.freeFlow) { if (!mustYield(v)) { v.state = 'cross'; v.pi = 0; } }
+          else if (controlled && isSafe(v)) { v.state = 'cross'; v.pi = 0; }
         }
       } else if (v.state === 'cross') {
         const p = c.path;
