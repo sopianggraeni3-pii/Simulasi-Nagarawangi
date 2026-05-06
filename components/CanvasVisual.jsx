@@ -91,13 +91,13 @@ export default function CanvasVisual({ activePhase, isRunning, speed }) {
         },
         // 5: North→East (left, free-flow) — right lane of north road
         {
-          sx: CX + lw * 0.5 + med, sy: -80 * d, stopX: CX + lw * 0.5 + med, stopY: CY - sd, freeFlow: true,
-          path: [{ x: CX + lw * 0.5 + med, y: CY - sd }, { x: CX + lw * 0.5 + med, y: CY - lw * 0.45 }, { x: ex, y: CY - lw * 0.45 }]
+          sx: CX + lw * 0.22 + med, sy: -80 * d, stopX: CX + lw * 0.22 + med, stopY: CY - sd, freeFlow: true,
+          path: [{ x: CX + lw * 0.22 + med, y: CY - sd }, { x: CX + lw * 0.22 + med, y: CY - lw * 0.45 }, { x: ex, y: CY - lw * 0.45 }]
         },
         // 6: North→West (right, controlled Fase 2) — right lane north road
         {
-          sx: CX + lw * 0.5 + med, sy: -80 * d, stopX: CX + lw * 0.5 + med, stopY: CY - sd, freeFlow: false,
-          path: [{ x: CX + lw * 0.5 + med, y: CY - sd }, { x: CX + lw * 0.5 + med, y: CY + lw * 0.45 }, { x: -80 * d, y: CY + lw * 0.45 }]
+          sx: CX + lw * 0.22 + med, sy: -80 * d, stopX: CX + lw * 0.22 + med, stopY: CY - sd, freeFlow: false,
+          path: [{ x: CX + lw * 0.22 + med, y: CY - sd }, { x: CX + lw * 0.22 + med, y: CY + lw * 0.45 }, { x: -80 * d, y: CY + lw * 0.45 }]
         },
       ];
     }
